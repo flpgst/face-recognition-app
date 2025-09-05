@@ -1,7 +1,7 @@
 // app.js
 
 const video = document.getElementById('video');
-const startBtn = document.getElementById('startBtn');
+const resultBox = document.getElementById('result-box');
 const captureBtn = document.getElementById('captureBtn');
 
 // Model URL constant
@@ -14,10 +14,9 @@ async function init() {
     try {
         // Load all required models
         await Promise.all([
-            faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
-            faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-            faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
-            faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL) // <-- Load the required model
+            faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL), // O mais leve para detecção
+            faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_URL), // Modelo de marcos faciais mais leve
+            faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL) // Necessário para reconhecer as faces
         ]);
 
         console.log('Models loaded successfully');
@@ -27,10 +26,11 @@ async function init() {
         faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, 0.6);
         console.log('Reference faces loaded and matcher created.');
 
-        // Add event listeners
-        startBtn.addEventListener('click', startVideo);
-        // The capture button is not needed for real-time recognition, but we can keep it.
-        captureBtn.addEventListener('click', () => console.log('Capture button clicked'));
+        // Start the video automatically
+        startVideo();
+
+        // Add event listener to the capture button to trigger recognition
+        captureBtn.addEventListener('click', recognizeFace);
     } catch (error) {
         console.error('Error initializing:', error);
     }
@@ -39,14 +39,14 @@ async function init() {
 // Function to load reference images and create labeled descriptors
 async function loadLabeledImages() {
     // Update this array with the names of your image files (without extension)
-    const labels = ['Filipe', 'Guilherme', 'Theo']; // Add more names as needed
+    const labels = ['Filipe', 'Guilherme', 'Theo', 'Genival']; // Add more names as needed
     return Promise.all(
         labels.map(async label => {
             const descriptions = [];
             // Assuming images are in 'images/reference-faces' and are .jpg
             const imgUrl = `images/reference-faces/${label}.jpg`;
             const img = await faceapi.fetchImage(imgUrl);
-            const detections = await faceapi.detectSingleFace(img).withFaceLandmarks().withFaceDescriptor();
+            const detections = await faceapi.detectSingleFace(img, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks(true).withFaceDescriptor();
             if (detections) {
                 descriptions.push(detections.descriptor);
             }
@@ -64,27 +64,44 @@ async function startVideo() {
     }
 }
 
-// Run face detection when video is playing
-video.addEventListener('play', () => {
-    const canvas = faceapi.createCanvasFromMedia(video);
-    document.body.append(canvas);
+// Function to perform face recognition on the current video frame
+async function recognizeFace() {
+    if (!faceMatcher) {
+        console.log("Aguardando o faceMatcher ser inicializado.");
+        return;
+    }
+
     const displaySize = { width: video.width, height: video.height };
-    faceapi.matchDimensions(canvas, displaySize);
+    const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks(true).withFaceDescriptors();
 
-    setInterval(async () => {
-        if (!faceMatcher) return;
-        const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptors();
+    if (detections.length > 0) {
         const resizedDetections = faceapi.resizeResults(detections, displaySize);
-        canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
 
-        const results = resizedDetections.map(d => faceMatcher.findBestMatch(d.descriptor));
-        results.forEach((result, i) => {
-            const box = resizedDetections[i].detection.box;
-            const drawBox = new faceapi.draw.DrawBox(box, { label: result.toString() });
-            drawBox.draw(canvas);
-        });
-    }, 200);
-});
+        // Encontra a maior detecção (rosto mais próximo/maior na tela)
+        const largestDetection = resizedDetections.sort((a, b) => b.detection.box.area - a.detection.box.area)[0];
+
+        if (largestDetection) {
+            const bestMatch = faceMatcher.findBestMatch(largestDetection.descriptor);
+            const name = bestMatch.label;
+            const similarity = (1 - bestMatch.distance).toFixed(2);
+
+            resultBox.style.display = 'block';
+            resultBox.textContent = `Encontrado: ${name} (Similaridade: ${similarity})`;
+
+            if (name === 'unknown') {
+                resultBox.className = 'result-box unknown';
+                resultBox.textContent = `Desconhecido (Similaridade: ${similarity})`;
+            } else {
+                resultBox.className = 'result-box found';
+            }
+        }
+    } else {
+        // Se nenhum rosto for detectado, mostra uma mensagem e oculta a caixa
+        resultBox.style.display = 'block';
+        resultBox.className = 'result-box unknown';
+        resultBox.textContent = 'Nenhum rosto detectado.';
+    }
+}
 
 // Start the application
 document.addEventListener('DOMContentLoaded', init);

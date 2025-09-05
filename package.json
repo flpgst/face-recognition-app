@@ -4,7 +4,7 @@
   "description": "A web application for facial recognition using face-api.js",
   "main": "src/js/app.js",
   "scripts": {
-    "start": "live-server src"
+    "start": "live-server src --browser=firefox"
   },
   "dependencies": {
     "face-api.js": "^0.22.2"
