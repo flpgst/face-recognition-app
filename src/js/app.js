@@ -39,7 +39,7 @@ async function init() {
 // Function to load reference images and create labeled descriptors
 async function loadLabeledImages() {
     // Update this array with the names of your image files (without extension)
-    const labels = ['Filipe', 'Guilherme', 'Theo', 'Genival']; // Add more names as needed
+    const labels = ['Filipe', 'Guilherme']; // Add more names as needed
     return Promise.all(
         labels.map(async label => {
             const descriptions = [];
