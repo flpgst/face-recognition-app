@@ -1,0 +1,14 @@
+{
+  "name": "facial-recognition-app",
+  "version": "1.0.0",
+  "description": "A web application for facial recognition using face-api.js",
+  "main": "src/js/app.js",
+  "scripts": {
+    "start": "live-server src"
+  },
+  "dependencies": {
+    "face-api.js": "^0.22.2"
+  },
+  "author": "",
+  "license": "ISC"
+}
